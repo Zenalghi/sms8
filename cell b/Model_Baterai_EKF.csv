@@ -1,6 +1,6 @@
 # Model Baterai LiFePO4 - Format CSV untuk Python
 # Dibuat dari notebook ecm_ekf_final_v4.ipynb
-# Tanggal: 2026-04-01 13:49:09
+# Tanggal: 2026-04-01 13:56:17
 
 === BATTERY PARAMETERS ===
 Parameter,Value,Unit,Description
@@ -39,9 +39,3 @@ SOC_percent,R0_ohm,R1_ohm,C1_farad,Tau_s
 88.64304145052809,0.0028000000000000026,0.0026842660966356876,24189.0892443132,64.92995216700488
 
 
-=== PENGGUNAAN PYTHON ===
-# Untuk menggunakan model ini di Python:
-# 1. Load CSV sections menggunakan pandas
-# 2. Buat interpolasi untuk OCV dan ECM parameters
-# 3. Implementasikan EKF dengan parameter di atas
-# 4. Gunakan BatteryModel class yang sudah dibuat di notebook
