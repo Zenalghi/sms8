@@ -3,7 +3,7 @@ substitutions:
   external_components_source: github://syssi/esphome-jk-bms@main
   mac_address: 20:23:04:33:7B:67
   protocol_version: JK02_32S
-  mqtt_prefix: "bms_panel/260216" 
+  mqtt_prefix: "bms_panel/2602165" 
 
 esphome:
   name: ${name}
@@ -22,18 +22,93 @@ logger:
   level: DEBUG
 
 wifi:
-  ssid: "Ho"
-  password: "12345679"
+  # ssid dan password utama dikosongkan agar murni menggunakan WiFi Manager (Captive Portal)
+  ap:
+    ssid: "Homispe"
+    password: "0098765431"
 
+# Menambahkan captive_portal agar AP bisa digunakan untuk setting WiFi
+captive_portal:
 
 ota:
   - platform: esphome
     password: "98765431"
 
+# Script khusus untuk mengirim status JSON 4 Relay sekaligus
+script:
+  - id: publish_relay_states
+    then:
+      - mqtt.publish_json:
+          topic: "${mqtt_prefix}/state/relays"
+          payload: |-
+            root["relay_1"] = id(relay_1).state ? "ON" : "OFF";
+            root["relay_2"] = id(relay_2).state ? "ON" : "OFF";
+            root["relay_3"] = id(relay_3).state ? "ON" : "OFF";
+            root["relay_4"] = id(relay_4).state ? "ON" : "OFF";
+
 mqtt:
   broker: broker.mqtt.cool 
   port: 1883
   topic_prefix: ${mqtt_prefix}
+  # Subscribe ke MQTT dan filter logika SOC < 20%
+  on_message:
+    # --- Relay 1 (Tanpa batasan SOC) ---
+    - topic: "${mqtt_prefix}/switch/relay_1/command"
+      payload: 'ON'
+      then:
+        - switch.turn_on: relay_1
+    - topic: "${mqtt_prefix}/switch/relay_1/command"
+      payload: 'OFF'
+      then:
+        - switch.turn_off: relay_1
+        
+    # --- Relay 2 ---
+    - topic: "${mqtt_prefix}/switch/relay_2/command"
+      payload: 'ON'
+      then:
+        - if:
+            condition:
+              lambda: 'return id(bms_soc).has_state() && id(bms_soc).state >= 20.0;'
+            then:
+              - switch.turn_on: relay_2
+            else:
+              - logger.log: "Command ON Relay 2 ditolak, SOC di bawah 20%!"
+    - topic: "${mqtt_prefix}/switch/relay_2/command"
+      payload: 'OFF'
+      then:
+        - switch.turn_off: relay_2
+
+    # --- Relay 3 ---
+    - topic: "${mqtt_prefix}/switch/relay_3/command"
+      payload: 'ON'
+      then:
+        - if:
+            condition:
+              lambda: 'return id(bms_soc).has_state() && id(bms_soc).state >= 20.0;'
+            then:
+              - switch.turn_on: relay_3
+            else:
+              - logger.log: "Command ON Relay 3 ditolak, SOC di bawah 20%!"
+    - topic: "${mqtt_prefix}/switch/relay_3/command"
+      payload: 'OFF'
+      then:
+        - switch.turn_off: relay_3
+
+    # --- Relay 4 ---
+    - topic: "${mqtt_prefix}/switch/relay_4/command"
+      payload: 'ON'
+      then:
+        - if:
+            condition:
+              lambda: 'return id(bms_soc).has_state() && id(bms_soc).state >= 20.0;'
+            then:
+              - switch.turn_on: relay_4
+            else:
+              - logger.log: "Command ON Relay 4 ditolak, SOC di bawah 20%!"
+    - topic: "${mqtt_prefix}/switch/relay_4/command"
+      payload: 'OFF'
+      then:
+        - switch.turn_off: relay_4
 
 esp32_ble_tracker:
   scan_parameters:
@@ -50,7 +125,7 @@ jk_bms_ble:
     id: bms0
 
 # =========================================================
-# 1. SENSOR DATA (Disembunyikan agar tidak spam MQTT 1 per 1)
+# 1. SENSOR DATA
 # =========================================================
 sensor:
   - platform: jk_bms_ble
@@ -84,6 +159,31 @@ sensor:
       name: "SOC"
       id: bms_soc
       internal: true
+      # Auto Turn OFF Relay jika SOC tiba-tiba < 20%
+      on_value:
+        - if:
+            condition:
+              lambda: 'return x < 20.0;'
+            then:
+              - if:
+                  condition:
+                    switch.is_on: relay_2
+                  then:
+                    - switch.turn_off: relay_2
+                    - logger.log: "Auto-OFF Relay 2 karena SOC < 20%"
+              - if:
+                  condition:
+                    switch.is_on: relay_3
+                  then:
+                    - switch.turn_off: relay_3
+                    - logger.log: "Auto-OFF Relay 3 karena SOC < 20%"
+              - if:
+                  condition:
+                    switch.is_on: relay_4
+                  then:
+                    - switch.turn_off: relay_4
+                    - logger.log: "Auto-OFF Relay 4 karena SOC < 20%"
+
     capacity_remaining:
       name: "Capacity Remaining"
       id: bms_cap_remain
@@ -156,16 +256,15 @@ sensor:
       internal: true
 
 # =========================================================
-# 2. LOGIKA PACKING JSON (Kirim Semua Data Secara Serentak)
+# 2. LOGIKA PACKING JSON
 # =========================================================
 interval:
-  - interval: 5s 
+  - interval: 1s 
     then:
       - if:
           condition:
             binary_sensor.is_on: bms_online_status
           then:
-            # TOPIK JSON 1: MAIN DATA
             - mqtt.publish_json:
                 topic: "${mqtt_prefix}/data/main"
                 payload: |-
@@ -196,14 +295,12 @@ interval:
                   res.add(id(bms_res_7).has_state() ? id(bms_res_7).state : 0.0);
                   res.add(id(bms_res_8).has_state() ? id(bms_res_8).state : 0.0);
 
-            # TOPIK JSON 2: SOC BAWAAN JIKONG
             - mqtt.publish_json:
                 topic: "${mqtt_prefix}/data/soc_bawaan"
                 payload: |-
                   root["soc_jk"] = id(bms_soc).has_state() ? id(bms_soc).state : 0.0;
                   root["capacity_remain"] = id(bms_cap_remain).has_state() ? id(bms_cap_remain).state : 0.0;
 
-            # TOPIK JSON 3: STATUS SWITCH (BACA SAJA)
             - mqtt.publish_json:
                 topic: "${mqtt_prefix}/state/switches"
                 payload: |-
@@ -211,7 +308,6 @@ interval:
                   root["discharge_switch"] = id(sw_discharge).state ? "ON" : "OFF";
                   root["balance_switch"] = id(sw_balance).state ? "ON" : "OFF";
 
-            # TOPIK JSON 4: STATUS SETTING (BACA SAJA)
             - mqtt.publish_json:
                 topic: "${mqtt_prefix}/state/settings"
                 payload: |-
@@ -220,7 +316,7 @@ interval:
                   root["balance_trig_v"] = id(num_bal_trig).has_state() ? id(num_bal_trig).state : 0.0;
 
 # =========================================================
-# 3. KONTROL PENUH BMS (Terekspos agar bisa dikirim perintah tunggal)
+# 3. KONTROL PENUH BMS & RELAY EXT (Terekspos)
 # =========================================================
 switch:
   - platform: jk_bms_ble
@@ -233,6 +329,53 @@ switch:
     balancer:
       name: "Balance Switch"
       id: sw_balance
+
+  # --- Relay Eksternal 1-4 (Active Low) ---
+  # internal: true mencegah ESPHome mengirim MQTT standar, 
+  # sehingga tidak berbenturan dengan publish JSON custom kita.
+  - platform: gpio
+    id: relay_1
+    pin:
+      number: 26
+      inverted: true
+    internal: true
+    on_turn_on:
+      - script.execute: publish_relay_states
+    on_turn_off:
+      - script.execute: publish_relay_states
+
+  - platform: gpio
+    id: relay_2
+    pin:
+      number: 25
+      inverted: true
+    internal: true
+    on_turn_on:
+      - script.execute: publish_relay_states
+    on_turn_off:
+      - script.execute: publish_relay_states
+
+  - platform: gpio
+    id: relay_3
+    pin:
+      number: 33
+      inverted: true
+    internal: true
+    on_turn_on:
+      - script.execute: publish_relay_states
+    on_turn_off:
+      - script.execute: publish_relay_states
+
+  - platform: gpio
+    id: relay_4
+    pin:
+      number: 32
+      inverted: true
+    internal: true
+    on_turn_on:
+      - script.execute: publish_relay_states
+    on_turn_off:
+      - script.execute: publish_relay_states
 
 number:
   - platform: jk_bms_ble
