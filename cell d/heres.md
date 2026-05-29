@@ -403,7 +403,9 @@ Build the index.html skeleton for the dashboard — just the visual shell, no co
 
 The overall feel is dark glassmorphism — Apple-grade minimal meets NASA mission control. Background is near-black #15151F. All panels are glass cards: rgba(31,31,43,0.55) with heavy backdrop blur and a barely-there white border. Behind everything, a large soft violet orb blurred in the top-left and a large soft cyan orb blurred in the mid-right. A full-page dot grid sits over the background at very low opacity — small dots, ~24px spacing. None of these background elements are ever crisp.
 
-Color palette as CSS variables — cyan #22D3EE, cyan-glow #67E8F9, deep-blue #0F172A, blue-glow #3B82F6, teal #14B8A6, mint #34D399, emerald #10B981, lime #84CC16, text #F4F7FB, muted #94A3B8.
+Color palette as CSS variables — crimson #DC2626, crimson-glow #F87171, noir #0B0F19, midnight-blue #111827, cobalt #2563EB, cyan-glow #38BDF8, magenta #C026D3, silver #D1D5DB, text #F4F4F8, muted #8B93A7.
+
+Theme inspiration: Ada Wong RE4 Remake — elegant crimson highlights, cold blue tactical glow, deep noir shadows, sleek metallic contrast, and mysterious cyber-noir atmosphere.
 
 Two fonts from Google CDN: Inter Tight for all headings and numbers, JetBrains Mono for all labels, codes, and timestamps — mono text is always uppercase with wide letter-spacing.
 
